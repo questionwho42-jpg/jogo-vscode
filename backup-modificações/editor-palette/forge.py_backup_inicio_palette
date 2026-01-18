@@ -1,0 +1,174 @@
+import dearpygui.dearpygui as dpg
+import json # Importa a biblioteca para lidar com arquivos JSON
+
+# --- DADOS E ESTADO DO EDITOR ---
+
+# Definição dos nossos "pincéis" (tiles)
+TILES = {
+    0: {"name": "Grama", "color": (0, 255, 0, 150)},
+    1: {"name": "Água", "color": (0, 0, 255, 150)},
+    2: {"name": "Terra", "color": (139, 69, 19, 150)},
+}
+
+# Dimensões do nosso grid do mapa
+GRID_WIDTH_CELLS = 25
+GRID_HEIGHT_CELLS = 17
+TILE_SIZE_PX = 32
+
+# Estado atual do editor
+editor_state = {
+    "selected_tile_id": 0
+}
+
+# Estrutura de dados que guarda o mapa
+map_data = [[0 for _ in range(GRID_WIDTH_CELLS)] for _ in range(GRID_HEIGHT_CELLS)]
+
+
+# --- FUNÇÕES DE CALLBACK (Ações) ---
+
+def _save_map_callback(sender, app_data):
+    """Callback da janela de salvar. Executado ao escolher um arquivo."""
+    file_path_name = app_data['file_path_name']
+    print(f"Salvando mapa em: {file_path_name}")
+    try:
+        with open(file_path_name, 'w') as f:
+            # Converte a lista 'map_data' para o formato JSON e salva no arquivo
+            json.dump(map_data, f, indent=4)
+        print("Mapa salvo com sucesso!")
+    except Exception as e:
+        print(f"Ocorreu um erro ao salvar o mapa: {e}")
+
+def _load_map_callback(sender, app_data):
+    """Callback da janela de carregar. Executado ao escolher um arquivo."""
+    global map_data # Precisamos da permissão 'global' para modificar a variável
+    file_path_name = app_data['file_path_name']
+    print(f"Carregando mapa de: {file_path_name}")
+    try:
+        with open(file_path_name, 'r') as f:
+            # Carrega o JSON do arquivo e atualiza nossa estrutura de dados
+            loaded_data = json.load(f)
+            # Validação simples para garantir que as dimensões batem
+            if (len(loaded_data) == GRID_HEIGHT_CELLS and
+                all(len(row) == GRID_WIDTH_CELLS for row in loaded_data)):
+                map_data = loaded_data
+                print("Mapa carregado com sucesso!")
+                # Força o redesenho do mapa na tela
+                redraw_map("map_drawlist")
+            else:
+                print("Erro: O arquivo de mapa parece ter dimensões inválidas.")
+
+    except Exception as e:
+        print(f"Ocorreu um erro ao carregar o mapa: {e}")
+
+
+def select_tile(sender, app_data, user_data):
+    """Callback executado quando um botão de tile na paleta é clicado."""
+    tile_id = user_data
+    editor_state["selected_tile_id"] = tile_id
+    dpg.set_value("selected_tile_text", f"Selecionado: {TILES[tile_id]['name']}")
+
+def paint_on_map_callback(sender, app_data):
+    """Callback executado ao clicar com o mouse. Responsável por pintar no mapa."""
+    if app_data != dpg.mvMouseButton_Left:
+        return
+
+    if dpg.is_item_hovered("map_drawlist"):
+        mouse_pos = dpg.get_drawing_mouse_pos()
+        col = int(mouse_pos[0] / TILE_SIZE_PX)
+        row = int(mouse_pos[1] / TILE_SIZE_PX)
+
+        if 0 <= row < GRID_HEIGHT_CELLS and 0 <= col < GRID_WIDTH_CELLS:
+            map_data[row][col] = editor_state["selected_tile_id"]
+            redraw_map("map_drawlist")
+
+# --- FUNÇÕES DE DESENHO ---
+
+def redraw_map(drawlist_tag):
+    """Limpa e redesenha completamente a área do mapa com base nos dados em map_data."""
+    dpg.delete_item(drawlist_tag, children_only=True)
+
+    draw_width = GRID_WIDTH_CELLS * TILE_SIZE_PX
+    draw_height = GRID_HEIGHT_CELLS * TILE_SIZE_PX
+
+    for row in range(GRID_HEIGHT_CELLS):
+        for col in range(GRID_WIDTH_CELLS):
+            tile_id = map_data[row][col]
+            tile_color = TILES[tile_id]["color"]
+            p1 = (col * TILE_SIZE_PX, row * TILE_SIZE_PX)
+            p2 = ((col + 1) * TILE_SIZE_PX, (row + 1) * TILE_SIZE_PX)
+            dpg.draw_rectangle(p1, p2, color=tile_color, fill=tile_color, parent=drawlist_tag)
+
+    for i in range(0, draw_width + 1, TILE_SIZE_PX):
+        dpg.draw_line((i, 0), (i, draw_height), color=(255, 255, 255, 30), thickness=1, parent=drawlist_tag)
+    for i in range(0, draw_height + 1, TILE_SIZE_PX):
+        dpg.draw_line((0, i), (draw_width, i), color=(255, 255, 255, 30), thickness=1, parent=drawlist_tag)
+
+
+# --- JANELAS DO EDITOR ---
+
+def show_tile_palette():
+    """Cria a janela da paleta de tiles."""
+    with dpg.window(tag="janela_paleta", label="Paleta de Tiles", width=200, height=250, pos=(10, 50)):
+        dpg.add_text("Clique para selecionar um tile:")
+        for tile_id, tile_info in TILES.items():
+            dpg.add_button(label=tile_info["name"], callback=select_tile, user_data=tile_id, width=-1)
+        dpg.add_separator()
+        dpg.add_text(f"Selecionado: {TILES[editor_state['selected_tile_id']]['name']}", tag="selected_tile_text")
+
+def show_map_editor(sender, app_data):
+    """Cria a janela do editor de mapas."""
+    if dpg.does_item_exist("janela_mapa"):
+        dpg.show_item("janela_mapa")
+        dpg.focus_item("janela_mapa")
+        return
+
+    draw_width = GRID_WIDTH_CELLS * TILE_SIZE_PX
+    draw_height = GRID_HEIGHT_CELLS * TILE_SIZE_PX
+    
+    with dpg.window(tag="janela_mapa", label="Editor de Mapas", width=draw_width + 40, height=draw_height + 80, pos=(220, 50)):
+        dpg.add_text("Area de Desenho do Mapa")
+        with dpg.drawlist(width=draw_width, height=draw_height, tag="map_drawlist"):
+            redraw_map("map_drawlist")
+
+def run_editor():
+    dpg.create_context()
+    dpg.create_viewport(title='Pandorha Forge - Editor de RPG', width=1280, height=720)
+    dpg.setup_dearpygui()
+    dpg.configure_app(docking=True, docking_space=True)
+
+    # --- JANELAS DE DIÁLOGO (para salvar/carregar) ---
+    with dpg.file_dialog(
+        directory_selector=False, show=False, callback=_save_map_callback, tag="file_dialog_save_map",
+        file_count=1, default_filename="novo_mapa", width=700 ,height=400):
+        dpg.add_file_extension(".json", color=(0, 255, 255, 255))
+        dpg.add_file_extension(".*")
+
+    with dpg.file_dialog(
+        directory_selector=False, show=False, callback=_load_map_callback, tag="file_dialog_load_map",
+        file_count=1, width=700 ,height=400):
+        dpg.add_file_extension(".json", color=(0, 255, 255, 255))
+        dpg.add_file_extension(".*")
+
+
+    with dpg.handler_registry():
+        dpg.add_mouse_click_handler(callback=paint_on_map_callback)
+
+    with dpg.viewport_menu_bar():
+        with dpg.menu(label="Arquivo"):
+            # Adiciona os botões para mostrar as janelas de diálogo
+            dpg.add_menu_item(label="Salvar Mapa...", callback=lambda: dpg.show_item("file_dialog_save_map"))
+            dpg.add_menu_item(label="Carregar Mapa...", callback=lambda: dpg.show_item("file_dialog_load_map"))
+            dpg.add_separator()
+            dpg.add_menu_item(label="Sair", callback=dpg.stop_dearpygui)
+        with dpg.menu(label="Modulos"):
+            dpg.add_menu_item(label="Editor de Mapas", callback=show_map_editor)
+            dpg.add_menu_item(label="Editor de NPCs")
+    
+    show_tile_palette()
+
+    dpg.show_viewport()
+    dpg.start_dearpygui()
+    dpg.destroy_context()
+
+if __name__ == "__main__":
+    run_editor()

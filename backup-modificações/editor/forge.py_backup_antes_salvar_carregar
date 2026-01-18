@@ -1,0 +1,138 @@
+import dearpygui.dearpygui as dpg
+
+# --- DADOS E ESTADO DO EDITOR ---
+
+# Definição dos nossos "pincéis" (tiles)
+TILES = {
+    0: {"name": "Grama", "color": (0, 255, 0, 150)},
+    1: {"name": "Água", "color": (0, 0, 255, 150)},
+    2: {"name": "Terra", "color": (139, 69, 19, 150)},
+}
+
+# Dimensões do nosso grid do mapa
+GRID_WIDTH_CELLS = 25
+GRID_HEIGHT_CELLS = 17 
+TILE_SIZE_PX = 32
+
+# Estado atual do editor
+editor_state = {
+    "selected_tile_id": 0 
+}
+
+# Estrutura de dados que guarda o mapa
+map_data = [[0 for _ in range(GRID_WIDTH_CELLS)] for _ in range(GRID_HEIGHT_CELLS)]
+
+
+# --- FUNÇÕES DE CALLBACK (Ações) ---
+
+def select_tile(sender, app_data, user_data):
+    """Callback executado quando um botão de tile na paleta é clicado."""
+    tile_id = user_data
+    editor_state["selected_tile_id"] = tile_id
+    dpg.set_value("selected_tile_text", f"Selecionado: {TILES[tile_id]['name']}")
+
+def paint_on_map_callback(sender, app_data):
+    """Callback executado ao clicar com o mouse. Responsável por pintar no mapa."""
+    # Garante que a pintura só aconteça com o botão esquerdo do mouse
+    if app_data != dpg.mvMouseButton_Left:
+        return
+
+    # a função is_item_hovered() é a forma mais fácil de saber se o mouse está sobre a área de desenho
+    if dpg.is_item_hovered("map_drawlist"):
+        # Pega a posição do mouse RELATIVA à área de desenho, que é o correto.
+        mouse_pos = dpg.get_drawing_mouse_pos()
+        
+        # Converte a posição do mouse em pixels para coordenadas do grid
+        col = int(mouse_pos[0] / TILE_SIZE_PX)
+        row = int(mouse_pos[1] / TILE_SIZE_PX)
+
+        # Garante que não tentemos pintar fora dos limites do mapa
+        if 0 <= row < GRID_HEIGHT_CELLS and 0 <= col < GRID_WIDTH_CELLS:
+            # Atualiza a nossa "memória" do mapa com o ID do tile selecionado
+            map_data[row][col] = editor_state["selected_tile_id"]
+            # Chama a função para redesenhar o mapa e mostrar a alteração
+            redraw_map("map_drawlist")
+
+# --- FUNÇÕES DE DESENHO ---
+
+def redraw_map(drawlist_tag):
+    """Limpa e redesenha completamente a área do mapa com base nos dados em map_data."""
+    # Limpa todos os desenhos anteriores da área do mapa
+    dpg.delete_item(drawlist_tag, children_only=True)
+
+    draw_width = GRID_WIDTH_CELLS * TILE_SIZE_PX
+    draw_height = GRID_HEIGHT_CELLS * TILE_SIZE_PX
+
+    # 1. Desenha os tiles (retângulos coloridos)
+    for row in range(GRID_HEIGHT_CELLS):
+        for col in range(GRID_WIDTH_CELLS):
+            tile_id = map_data[row][col]
+            tile_color = TILES[tile_id]["color"]
+            
+            p1 = (col * TILE_SIZE_PX, row * TILE_SIZE_PX)
+            p2 = ((col + 1) * TILE_SIZE_PX, (row + 1) * TILE_SIZE_PX)
+            
+            dpg.draw_rectangle(p1, p2, color=tile_color, fill=tile_color, parent=drawlist_tag)
+
+    # 2. Desenha as linhas do grid por cima dos tiles
+    for i in range(0, draw_width + 1, TILE_SIZE_PX):
+        dpg.draw_line((i, 0), (i, draw_height), color=(255, 255, 255, 30), thickness=1, parent=drawlist_tag)
+    for i in range(0, draw_height + 1, TILE_SIZE_PX):
+        dpg.draw_line((0, i), (draw_width, i), color=(255, 255, 255, 30), thickness=1, parent=drawlist_tag)
+
+
+# --- JANELAS DO EDITOR ---
+
+def show_tile_palette():
+    """Cria a janela da paleta de tiles."""
+    with dpg.window(tag="janela_paleta", label="Paleta de Tiles", width=200, height=250, pos=(10, 50)):
+        dpg.add_text("Clique para selecionar um tile:")
+        for tile_id, tile_info in TILES.items():
+            dpg.add_button(label=tile_info["name"], callback=select_tile, user_data=tile_id, width=-1)
+        dpg.add_separator()
+        dpg.add_text(f"Selecionado: {TILES[editor_state['selected_tile_id']]['name']}", tag="selected_tile_text")
+
+def show_map_editor(sender, app_data):
+    """Cria a janela do editor de mapas."""
+    if dpg.does_item_exist("janela_mapa"):
+        dpg.show_item("janela_mapa")
+        dpg.focus_item("janela_mapa")
+        return
+
+    draw_width = GRID_WIDTH_CELLS * TILE_SIZE_PX
+    draw_height = GRID_HEIGHT_CELLS * TILE_SIZE_PX
+    
+    with dpg.window(tag="janela_mapa", label="Editor de Mapas", width=draw_width + 40, height=draw_height + 80, pos=(220, 50)):
+        dpg.add_text("Area de Desenho do Mapa")
+        with dpg.drawlist(width=draw_width, height=draw_height, tag="map_drawlist"):
+            # A partir de agora, o desenho inicial é feito pela função redraw_map
+            redraw_map("map_drawlist")
+
+def run_editor():
+    # 1. Configuração inicial
+    dpg.create_context()
+    dpg.create_viewport(title='Pandorha Forge - Editor de RPG', width=1280, height=720)
+    dpg.setup_dearpygui()
+    dpg.configure_app(docking=True, docking_space=True)
+
+    # 2. Registrar os handlers de input (escutar o mouse)
+    with dpg.handler_registry():
+        dpg.add_mouse_click_handler(callback=paint_on_map_callback)
+
+    # 3. Criar a Barra de Menu e Janelas
+    with dpg.viewport_menu_bar():
+        with dpg.menu(label="Arquivo"):
+            dpg.add_menu_item(label="Sair", callback=dpg.stop_dearpygui)
+        with dpg.menu(label="Modulos"):
+            dpg.add_menu_item(label="Editor de Mapas", callback=show_map_editor)
+            dpg.add_menu_item(label="Editor de NPCs")
+    
+    show_tile_palette()
+
+    # 4. Loop principal da aplicação
+    dpg.show_viewport()
+    dpg.start_dearpygui()
+    dpg.destroy_context()
+
+if __name__ == "__main__":
+    run_editor()
