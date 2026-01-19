@@ -15,13 +15,15 @@ TILE_SIZE_PX = 64
 # Dimensões do nosso grid do mapa (ajustadas para caber mais ou menos na mesma área)
 GRID_WIDTH_CELLS = 13
 GRID_HEIGHT_CELLS = 9
-NUM_LAYERS = 6 
+NUM_LAYERS = 7
 # 0=Chão, 1=Objetos, 2=Topo (Visuais)
 # 3=Som, 4=Luz, 5=Cheiro (Dados)
+# 6=Colisão (Dados)
 
 LAYER_NAMES = [
     "1. Chao (Visual)", "2. Objetos (Visual)", "3. Topo (Visual)",
-    "4. Sons (Dados)", "5. Luzes (Dados)", "6. Cheiros (Dados)"
+    "4. Sons (Dados)", "5. Luzes (Dados)", "6. Cheiros (Dados)",
+    "7. Colisao (Dados)"
 ]
 
 # O dicionário de TILES agora será preenchido dinamicamente
@@ -60,6 +62,8 @@ def create_system_markers(start_id):
         # Camada 5: Cheiros (Verde/Roxo)
         {"name": "Cheiro: Natureza", "color": [0.0, 1.0, 0.0, 0.5], "layer_target": 5},
         {"name": "Cheiro: Podre", "color": [0.5, 0.0, 0.5, 0.5], "layer_target": 5},
+        # Camada 6: Colisão (Vermelho)
+        {"name": "Colisao: Bloqueio", "color": [1.0, 0.0, 0.0, 0.5], "layer_target": 6},
     ]
 
     current_id = start_id
