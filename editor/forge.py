@@ -259,9 +259,8 @@ def map_zoom_callback(sender, app_data):
     redraw_map("map_drawlist")
 
 def paint_on_map_callback(sender, app_data):
-    if app_data != dpg.mvMouseButton_Left:
-        return
-    
+    # Removemos a verificação manual do botão, pois agora o handler garante que é o botão esquerdo
+
     # TODO: Adicionar verificação se o tile selecionado é compatível com a camada atual
 
     if dpg.is_item_hovered("map_drawlist"):
@@ -478,7 +477,8 @@ def run_editor():
         dpg.add_file_extension(".json", color=(0, 255, 255, 255))
 
     with dpg.handler_registry():
-        dpg.add_mouse_click_handler(callback=paint_on_map_callback)
+        # Alterado de 'click' para 'down' para permitir pintar/apagar arrastando
+        dpg.add_mouse_down_handler(button=dpg.mvMouseButton_Left, callback=paint_on_map_callback)
         # Especificamos button=dpg.mvMouseButton_Right para evitar conflito com o clique esquerdo
         dpg.add_mouse_drag_handler(button=dpg.mvMouseButton_Right, callback=map_drag_callback)
         dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Right, callback=map_mouse_release_callback)
