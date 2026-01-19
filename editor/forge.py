@@ -33,7 +33,9 @@ TEXTURE_REGISTRY = {}
 editor_state = {
     "selected_tile_id": 0,  # Usaremos o ID 0 como padrão
     "current_layer": 0,     # Começa editando a camada 0 (Chão)
-    "view_mode": "Ver Todas" # Modos: "Ver Todas", "Apenas Atual", "Atual + Anterior"
+    "view_mode": "Ver Todas", # Modos: "Ver Todas", "Apenas Atual", "Atual + Anterior"
+    "camera": {"x": 0.0, "y": 0.0, "zoom": 1.0}, # Posição X, Y e Zoom da câmera
+    "drag_ref": [0, 0] # Memória para calcular o movimento do mouse manualmente
 }
 
 # Estrutura de dados que guarda o mapa (Agora com camadas!)
@@ -210,6 +212,48 @@ def change_view_mode(sender, app_data):
     editor_state["view_mode"] = app_data
     redraw_map("map_drawlist")
 
+def reset_camera_callback(sender, app_data):
+    editor_state["camera"] = {"x": 0.0, "y": 0.0, "zoom": 1.0}
+    print("Camera resetada para o centro.")
+    redraw_map("map_drawlist")
+
+def map_mouse_release_callback(sender, app_data):
+    # Quando soltar o botão direito, resetamos a referência de movimento
+    editor_state["drag_ref"] = [0, 0]
+
+def map_drag_callback(sender, app_data):
+    # app_data vem como [button, dx, dy]
+    # O DPG acumula o valor (ex: 1, 2, 3, 4...).
+    # Para mover suavemente, precisamos subtrair o valor anterior (4 - 3 = 1)
+    
+    current_dx = app_data[1]
+    current_dy = app_data[2]
+    
+    step_x = current_dx - editor_state["drag_ref"][0]
+    step_y = current_dy - editor_state["drag_ref"][1]
+    
+    editor_state["camera"]["x"] += step_x
+    editor_state["camera"]["y"] += step_y
+    
+    editor_state["drag_ref"] = [current_dx, current_dy]
+    redraw_map("map_drawlist")
+
+def map_zoom_callback(sender, app_data):
+    # app_data no scroll é o valor da rolagem (positivo ou negativo)
+    zoom_speed = 0.1
+    current_zoom = editor_state["camera"]["zoom"]
+    
+    if app_data > 0:
+        new_zoom = current_zoom + zoom_speed
+    else:
+        new_zoom = current_zoom - zoom_speed
+    
+    # Limita o zoom entre 0.1 (muito longe) e 3.0 (muito perto)
+    new_zoom = max(0.1, min(new_zoom, 3.0))
+    
+    editor_state["camera"]["zoom"] = new_zoom
+    redraw_map("map_drawlist")
+
 def paint_on_map_callback(sender, app_data):
     if app_data != dpg.mvMouseButton_Left:
         return
@@ -218,8 +262,15 @@ def paint_on_map_callback(sender, app_data):
 
     if dpg.is_item_hovered("map_drawlist"):
         mouse_pos = dpg.get_drawing_mouse_pos()
-        col = int(mouse_pos[0] / TILE_SIZE_PX)
-        row = int(mouse_pos[1] / TILE_SIZE_PX)
+        
+        # Converte a posição do mouse (Tela) para o Grid (Mundo)
+        # Fórmula: (Mouse - Camera) / Zoom
+        cam = editor_state["camera"]
+        world_x = (mouse_pos[0] - cam["x"]) / cam["zoom"]
+        world_y = (mouse_pos[1] - cam["y"]) / cam["zoom"]
+
+        col = int(world_x / TILE_SIZE_PX)
+        row = int(world_y / TILE_SIZE_PX)
 
         if 0 <= row < GRID_HEIGHT_CELLS and 0 <= col < GRID_WIDTH_CELLS:
             # Verifica se a célula clicada já tem o tile selecionado para evitar redesenhos
@@ -235,6 +286,8 @@ def redraw_map(drawlist_tag):
 
     draw_width = GRID_WIDTH_CELLS * TILE_SIZE_PX
     draw_height = GRID_HEIGHT_CELLS * TILE_SIZE_PX
+
+    cam = editor_state["camera"]
 
     # Define quais camadas desenhar baseado no modo de visualização
     view_mode = editor_state.get("view_mode", "Ver Todas")
@@ -273,17 +326,30 @@ def redraw_map(drawlist_tag):
                     continue
 
                 texture_tag = TILES[tile_id]["texture_tag"]
-                p1 = (col * TILE_SIZE_PX, row * TILE_SIZE_PX)
-                p2 = ((col + 1) * TILE_SIZE_PX, (row + 1) * TILE_SIZE_PX)
+                
+                # Calcula a posição na tela aplicando Zoom e Câmera
+                # Fórmula: (Posição * Zoom) + Camera
+                x1 = (col * TILE_SIZE_PX * cam["zoom"]) + cam["x"]
+                y1 = (row * TILE_SIZE_PX * cam["zoom"]) + cam["y"]
+                x2 = ((col + 1) * TILE_SIZE_PX * cam["zoom"]) + cam["x"]
+                y2 = ((row + 1) * TILE_SIZE_PX * cam["zoom"]) + cam["y"]
                 
                 # Desenha a imagem (sprite) no grid
-                dpg.draw_image(texture_tag, p1, p2, uv_min=(0, 0), uv_max=(1, 1), color=tint_color, parent=drawlist_tag)
+                dpg.draw_image(texture_tag, (x1, y1), (x2, y2), uv_min=(0, 0), uv_max=(1, 1), color=tint_color, parent=drawlist_tag)
 
     # Redesenha as linhas do grid por cima
+    # Ajustamos para desenhar apenas as linhas visíveis ou transformadas
     for i in range(0, draw_width + 1, TILE_SIZE_PX):
-        dpg.draw_line((i, 0), (i, draw_height), color=(255, 255, 255, 30), thickness=1, parent=drawlist_tag)
+        x = (i * cam["zoom"]) + cam["x"]
+        y_start = cam["y"]
+        y_end = (draw_height * cam["zoom"]) + cam["y"]
+        dpg.draw_line((x, y_start), (x, y_end), color=(255, 255, 255, 30), thickness=1, parent=drawlist_tag)
+        
     for i in range(0, draw_height + 1, TILE_SIZE_PX):
-        dpg.draw_line((0, i), (draw_width, i), color=(255, 255, 255, 30), thickness=1, parent=drawlist_tag)
+        y = (i * cam["zoom"]) + cam["y"]
+        x_start = cam["x"]
+        x_end = (draw_width * cam["zoom"]) + cam["x"]
+        dpg.draw_line((x_start, y), (x_end, y), color=(255, 255, 255, 30), thickness=1, parent=drawlist_tag)
 
 
 # --- JANELAS DO EDITOR ---
@@ -316,7 +382,6 @@ def refresh_palette():
                 user_data=tile_id,
                 width=TILE_SIZE_PX,
                 height=TILE_SIZE_PX,
-                frame_padding=2
             )
             with dpg.group():
                 dpg.add_spacer(height=10)
@@ -347,6 +412,10 @@ def show_tile_palette():
             callback=change_view_mode,
             horizontal=False
         )
+        dpg.add_separator()
+        
+        # Botão de emergência para achar o mapa
+        dpg.add_button(label="Resetar Camera (Centralizar)", callback=reset_camera_callback, width=-1)
         dpg.add_separator()
 
         # Botão especial para apagar
@@ -406,6 +475,10 @@ def run_editor():
 
     with dpg.handler_registry():
         dpg.add_mouse_click_handler(callback=paint_on_map_callback)
+        # Especificamos button=dpg.mvMouseButton_Right para evitar conflito com o clique esquerdo
+        dpg.add_mouse_drag_handler(button=dpg.mvMouseButton_Right, callback=map_drag_callback)
+        dpg.add_mouse_release_handler(button=dpg.mvMouseButton_Right, callback=map_mouse_release_callback)
+        dpg.add_mouse_wheel_handler(callback=map_zoom_callback)
 
     with dpg.viewport_menu_bar():
         with dpg.menu(label="Arquivo"):
