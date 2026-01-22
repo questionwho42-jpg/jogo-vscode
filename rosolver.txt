@@ -1,0 +1,5 @@
+DATA: 2023-10-27
+FEATURE: Interação com NPCs (Arrastar e Editar)
+STATUS: Falha na detecção do clique.
+PROBLEMA: A lógica matemática usava raio a partir do ponto (0,0) do sprite, tornando o clique impreciso.
+SOLUÇÃO PLANEJADA: Alterar para colisão retangular (AABB) e centralizar o arrasto.
