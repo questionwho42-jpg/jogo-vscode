@@ -330,6 +330,7 @@ def paint_on_map_callback(sender, app_data):
                     dpg.set_value("input_npc_sprite", f"{sprite_id}: {TILES[sprite_id]['name']}")
                 dpg.set_value("input_npc_hp", npc.get("hp", 10))
                 dpg.set_value("input_npc_attack", npc.get("attack", 2))
+                dpg.set_value("input_npc_dialogue", npc.get("dialogue", "Ola!"))
                 print(f"NPC Selecionado: {npc['name']}")
             else:
                 # MODO PINTAR
@@ -377,6 +378,7 @@ def add_npc_callback(sender, app_data):
     sprite_str = dpg.get_value("input_npc_sprite")
     hp = dpg.get_value("input_npc_hp")
     attack = dpg.get_value("input_npc_attack")
+    dialogue = dpg.get_value("input_npc_dialogue")
     
     if not name or not sprite_str:
         print("Erro: Nome ou Sprite inválidos.")
@@ -400,7 +402,8 @@ def add_npc_callback(sender, app_data):
         "x": int(start_x),
         "y": int(start_y),
         "hp": int(hp),
-        "attack": int(attack)
+        "attack": int(attack),
+        "dialogue": dialogue
     }
     
     npc_data.append(new_npc)
@@ -419,6 +422,7 @@ def save_npc_callback(sender, app_data):
     sprite_str = dpg.get_value("input_npc_sprite")
     hp = dpg.get_value("input_npc_hp")
     attack = dpg.get_value("input_npc_attack")
+    dialogue = dpg.get_value("input_npc_dialogue")
     
     try:
         sprite_id = int(sprite_str.split(":")[0])
@@ -429,6 +433,7 @@ def save_npc_callback(sender, app_data):
     npc_data[idx]["sprite_id"] = sprite_id
     npc_data[idx]["hp"] = int(hp)
     npc_data[idx]["attack"] = int(attack)
+    npc_data[idx]["dialogue"] = dialogue
     print(f"NPC Atualizado: {name} | HP: {hp} | ATK: {attack}")
     refresh_npc_list()
     redraw_map("map_drawlist")
@@ -649,6 +654,7 @@ def show_npc_editor(sender, app_data):
         dpg.add_separator()
         dpg.add_input_int(tag="input_npc_hp", label="Vida (HP)", default_value=10, width=100)
         dpg.add_input_int(tag="input_npc_attack", label="Ataque", default_value=2, width=100)
+        dpg.add_input_text(tag="input_npc_dialogue", label="Dialogo", default_value="Ola!", multiline=True, height=50)
         
         with dpg.group(horizontal=True):
             dpg.add_button(label="Adicionar", callback=add_npc_callback)

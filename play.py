@@ -22,6 +22,7 @@ FPS = 60
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
+BLUE = (0, 0, 255)
 
 class Game:
     def __init__(self):
@@ -29,6 +30,7 @@ class Game:
         pygame.init()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("O Mundo de Pandorha - Modo de Teste")
+        self.font = pygame.font.SysFont("Arial", 24) # Fonte para o texto
         self.clock = pygame.time.Clock()
         self.running = True
         # Permite segurar a tecla para andar repetidamente (delay inicial, intervalo)
@@ -44,6 +46,7 @@ class Game:
         self.player_rect = pygame.Rect(start_pos, start_pos, TILE_SIZE, TILE_SIZE)
         
         # Dados do Mapa
+        self.current_dialogue = None # Texto atual sendo exibido (None se não houver)
         self.map_data = None
         self.tiles_images = {}
         self.collision_layer = [] # Lista de retângulos de colisão
@@ -144,6 +147,29 @@ class Game:
         if dy != 0:
             self.player_rect.y += dy
             self.check_collision(0, dy)
+            
+    def interact(self):
+        """Tenta interagir com um NPC adjacente"""
+        # Se já tem dialogo aberto, fecha
+        if self.current_dialogue:
+            self.current_dialogue = None
+            return
+
+        # Verifica os 4 vizinhos
+        # Cria retângulos temporários ao redor do jogador para checar colisão com NPCs
+        neighbors = [
+            pygame.Rect(self.player_rect.x, self.player_rect.y - TILE_SIZE, TILE_SIZE, TILE_SIZE), # Cima
+            pygame.Rect(self.player_rect.x, self.player_rect.y + TILE_SIZE, TILE_SIZE, TILE_SIZE), # Baixo
+            pygame.Rect(self.player_rect.x - TILE_SIZE, self.player_rect.y, TILE_SIZE, TILE_SIZE), # Esquerda
+            pygame.Rect(self.player_rect.x + TILE_SIZE, self.player_rect.y, TILE_SIZE, TILE_SIZE)  # Direita
+        ]
+        
+        for npc in self.npcs:
+            npc_rect = pygame.Rect(npc["x"], npc["y"], TILE_SIZE, TILE_SIZE)
+            for neighbor in neighbors:
+                if neighbor.colliderect(npc_rect):
+                    self.current_dialogue = npc.get("dialogue", "...")
+                    return # Encontrou um, para de procurar
 
     def check_collision(self, dx, dy):
         """Verifica colisão com as paredes e empurra o jogador de volta"""
@@ -214,6 +240,17 @@ class Game:
         for wall in self.collision_layer:
             wall_screen = (wall.x - self.camera_x, wall.y - self.camera_y, wall.width, wall.height)
             pygame.draw.rect(self.screen, (255, 0, 0), wall_screen, 2)
+            
+        # Desenha a Interface de Diálogo (se houver)
+        if self.current_dialogue:
+            # Caixa de fundo
+            dialogue_box = pygame.Rect(50, SCREEN_HEIGHT - 150, SCREEN_WIDTH - 100, 130)
+            pygame.draw.rect(self.screen, BLACK, dialogue_box)
+            pygame.draw.rect(self.screen, WHITE, dialogue_box, 2) # Borda branca
+            
+            # Texto
+            text_surface = self.font.render(self.current_dialogue, True, WHITE)
+            self.screen.blit(text_surface, (70, SCREEN_HEIGHT - 130))
 
         pygame.display.flip()
 
@@ -227,6 +264,10 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         self.running = False
+                    
+                    # Interação (Espaço ou E)
+                    if event.key == pygame.K_SPACE or event.key == pygame.K_e:
+                        self.interact()
                     
                     # Movimento Quadrado a Quadrado (Grid-based)
                     if event.key == pygame.K_w or event.key == pygame.K_UP:
