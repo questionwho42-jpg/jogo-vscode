@@ -44,6 +44,8 @@ class Game:
         # Inicia alinhado ao grid (coluna 2, linha 2) e com o tamanho exato do tile (64x64)
         start_pos = 2 * TILE_SIZE
         self.player_rect = pygame.Rect(start_pos, start_pos, TILE_SIZE, TILE_SIZE)
+        self.player_hp = 100
+        self.player_attack_power = 10
         
         # Dados do Mapa
         self.current_dialogue = None # Texto atual sendo exibido (None se não houver)
@@ -171,6 +173,40 @@ class Game:
                     self.current_dialogue = npc.get("dialogue", "...")
                     return # Encontrou um, para de procurar
 
+    def attack(self):
+        """Ataca um NPC adjacente"""
+        # Verifica os 4 vizinhos (quem está grudado no jogador)
+        neighbors = [
+            pygame.Rect(self.player_rect.x, self.player_rect.y - TILE_SIZE, TILE_SIZE, TILE_SIZE),
+            pygame.Rect(self.player_rect.x, self.player_rect.y + TILE_SIZE, TILE_SIZE, TILE_SIZE),
+            pygame.Rect(self.player_rect.x - TILE_SIZE, self.player_rect.y, TILE_SIZE, TILE_SIZE),
+            pygame.Rect(self.player_rect.x + TILE_SIZE, self.player_rect.y, TILE_SIZE, TILE_SIZE)
+        ]
+        
+        target_npc = None
+        for npc in self.npcs:
+            npc_rect = pygame.Rect(npc["x"], npc["y"], TILE_SIZE, TILE_SIZE)
+            for neighbor in neighbors:
+                if neighbor.colliderect(npc_rect):
+                    target_npc = npc
+                    break
+            if target_npc: break
+        
+        if target_npc:
+            # Causa dano
+            dmg = self.player_attack_power
+            target_npc["hp"] = target_npc.get("hp", 10) - dmg
+            print(f"Voce atacou {target_npc['name']}! Dano: {dmg}. Vida restante: {target_npc['hp']}")
+            
+            if target_npc["hp"] <= 0:
+                print(f"{target_npc['name']} foi derrotado!")
+                self.npcs.remove(target_npc)
+            else:
+                # Revide do NPC
+                npc_dmg = target_npc.get("attack", 2)
+                self.player_hp -= npc_dmg
+                print(f"{target_npc['name']} revidou! Voce tomou {npc_dmg} de dano. Sua vida: {self.player_hp}")
+
     def check_collision(self, dx, dy):
         """Verifica colisão com as paredes e empurra o jogador de volta"""
         for wall in self.collision_layer:
@@ -251,6 +287,11 @@ class Game:
             # Texto
             text_surface = self.font.render(self.current_dialogue, True, WHITE)
             self.screen.blit(text_surface, (70, SCREEN_HEIGHT - 130))
+            
+        # HUD: Vida do Jogador
+        hp_text = f"HP: {self.player_hp}"
+        hp_surface = self.font.render(hp_text, True, RED if self.player_hp < 30 else WHITE)
+        self.screen.blit(hp_surface, (10, 10))
 
         pygame.display.flip()
 
@@ -268,6 +309,10 @@ class Game:
                     # Interação (Espaço ou E)
                     if event.key == pygame.K_SPACE or event.key == pygame.K_e:
                         self.interact()
+                        
+                    # Combate (K)
+                    if event.key == pygame.K_k:
+                        self.attack()
                     
                     # Movimento Quadrado a Quadrado (Grid-based)
                     if event.key == pygame.K_w or event.key == pygame.K_UP:
