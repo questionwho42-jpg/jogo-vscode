@@ -1,5 +1,5 @@
 DATA: 2023-10-27
-FEATURE: Propriedades de RPG nos NPCs
-STATUS: Falha ao salvar dados.
-PROBLEMA: Usuário relatou que as alterações de HP/Ataque não foram salvas.
-SOLUÇÃO PLANEJADA: Adicionar logs de debug, forçar conversão de tipos e verificar fluxo de salvamento.
+FEATURE: Modo de Teste (Play Mode)
+STATUS: Implementando Movimento em Grade.
+PROBLEMA: O movimento é contínuo (pixels), usuário quer discreto (quadrado a quadrado).
+SOLUÇÃO PLANEJADA: Alterar input para eventos KEYDOWN e usar pygame.key.set_repeat no play.py.
